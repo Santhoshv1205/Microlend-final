@@ -1,0 +1,29 @@
+package com.microlend.entity;
+
+import com.microlend.enums.InstallmentStatus;
+import lombok.*;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+public class RepaymentSchedule {
+
+    private Long scheduleID;
+    private Long loanAccountID;
+    private Integer installmentNumber;
+    private LocalDate dueDate;
+    private BigDecimal principalDue;
+    private BigDecimal interestDue;
+    private BigDecimal totalDue;
+
+    /** BUG FIX #4: Tracks cumulative amount paid toward this installment. */
+    @Builder.Default
+    private BigDecimal amountPaid = BigDecimal.ZERO;
+
+    /** BUG FIX #4: Stamped when installment reaches PAID status. */
+    private LocalDate paidDate;
+
+    @Builder.Default
+    private InstallmentStatus status = InstallmentStatus.PENDING;
+}

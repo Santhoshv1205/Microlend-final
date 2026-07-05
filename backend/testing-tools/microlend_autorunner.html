@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>MicroLend Auto Workflow Runner</title>
+    <style>
+        *{box-sizing:border-box;margin:0;padding:0}
+        body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a0f1e;color:#e2e8f0;font-size:13px;line-height:1.5;min-height:100vh}
+        header{background:#111827;border-bottom:1px solid #1e3354;padding:13px 22px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:999}
+        .logo{font-size:15px;font-weight:800;color:#fff}.logo span{color:#3b82f6}
+        .hbadge{font-size:10px;padding:2px 8px;border-radius:10px;font-weight:700}
+        .pb{background:#1e3354;color:#60a5fa;border:1px solid #2563eb44}
+        .sb{background:#14291e;color:#4ade80;border:1px solid #16a34a44}
+        header .sp{flex:1}
+        #mainRunBtn{background:#22c55e;color:#000;border:none;padding:9px 22px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;transition:all .2s}
+        #mainRunBtn:hover{background:#16a34a;transform:translateY(-1px)}
+        #mainRunBtn:disabled{background:#374151;color:#6b7280;cursor:not-allowed;transform:none}
+        #stopBtn{background:#374151;color:#e2e8f0;border:1px solid #4b5563;padding:9px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;display:none}
+        .layout{display:flex;height:calc(100vh - 56px);overflow:hidden}
+        .sidebar{width:248px;flex-shrink:0;background:#111827;border-right:1px solid #1e3354;overflow-y:auto;padding:8px 0}
+        .sidebar::-webkit-scrollbar{width:3px}.sidebar::-webkit-scrollbar-thumb{background:#1e3354}
+        .sb-phase{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#475569;padding:10px 14px 3px}
+        .sb-item{display:flex;align-items:center;gap:7px;padding:6px 14px;cursor:pointer;border-left:2px solid transparent;transition:all .1s}
+        .sb-item:hover{background:#1e2940}.sb-item.active{background:#1e2940;border-left-color:#3b82f6}
+        .sb-num{min-width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;background:#1e2940;color:#64748b;border:1px solid #1e3354;flex-shrink:0;transition:all .3s}
+        .sb-item.st-done .sb-num{background:#14291e;color:#4ade80;border-color:#16a34a44}
+        .sb-item.st-run .sb-num{background:#1e3354;color:#60a5fa;border-color:#2563eb44}
+        .sb-item.st-err .sb-num{background:#2d1515;color:#f87171;border-color:#b91c1c44}
+        .sb-label{flex:1;min-width:0}
+        .sb-name{font-size:11px;font-weight:500;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .sb-item.active .sb-name,.sb-item.st-done .sb-name{color:#e2e8f0}
+        .sb-role{font-size:9px;color:#475569}
+        .sb-dot{width:5px;height:5px;border-radius:50%;background:#1e3354;flex-shrink:0;transition:all .3s}
+        .sb-item.st-done .sb-dot{background:#22c55e}.sb-item.st-run .sb-dot{background:#3b82f6;animation:blink .8s infinite}.sb-item.st-err .sb-dot{background:#ef4444}
+        @keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+        .progress{height:3px;background:#1e3354}.progress-fill{height:100%;background:linear-gradient(90deg,#3b82f6,#22c55e);transition:width .4s;width:0%}
+        .main{flex:1;overflow-y:auto;padding:0}.main::-webkit-scrollbar{width:5px}.main::-webkit-scrollbar-thumb{background:#1e3354;border-radius:3px}
+        .stats{display:flex;background:#111827;border-bottom:1px solid #1e3354}
+        .stat{flex:1;padding:9px 12px;text-align:center;border-right:1px solid #1e3354}.stat:last-child{border-right:none}
+        .sv{font-size:17px;font-weight:800}.sl{font-size:9px;color:#64748b;margin-top:1px}
+        .phase-hdr{padding:14px 20px 6px;display:flex;align-items:center;gap:10px}
+        .ph-pill{display:inline-flex;align-items:center;padding:4px 13px;border-radius:20px;font-size:11px;font-weight:700;border:1px solid}
+        .step-card{margin:0 14px 9px;border-radius:9px;overflow:hidden;border:1px solid #1e3354;background:#111827;transition:border-color .3s,box-shadow .3s}
+        .step-card.st-run{border-color:#3b82f6;box-shadow:0 0 0 1px #3b82f622,0 3px 16px #3b82f610}
+        .step-card.st-done{border-color:#14291e}
+        .step-card.st-err{border-color:#2d1515}
+        .step-top{display:flex;align-items:center;gap:9px;padding:10px 14px}
+        .card-num{min-width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0;border:1px solid #1e3354;color:#64748b;background:#1e2940;transition:all .3s}
+        .st-run .card-num{background:#1e3354;color:#60a5fa;border-color:#2563eb44}
+        .st-done .card-num{background:#14291e;color:#4ade80;border-color:#16a34a44}
+        .st-err .card-num{background:#2d1515;color:#f87171;border-color:#b91c1c44}
+        .card-title{flex:1;min-width:0}
+        .card-name{font-size:12.5px;font-weight:600;color:#e2e8f0}
+        .card-sub{font-size:10px;color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .meth{font-size:9.5px;font-weight:800;padding:3px 8px;border-radius:4px;flex-shrink:0}
+        .role-tag{font-size:9.5px;padding:3px 7px;border-radius:4px;border:1px solid;flex-shrink:0}
+        .status-ico{font-size:14px;flex-shrink:0;width:18px;text-align:center}
+        .step-body{display:none;border-top:1px solid #1e3354}
+        .st-run .step-body,.st-done .step-body,.st-err .step-body{display:block}
+        .body-grid{display:grid;grid-template-columns:1fr 1fr;gap:0;border-bottom:1px solid #0a0f1e}
+        .body-grid:last-child{border-bottom:none}
+        .pane{padding:11px 14px;border-right:1px solid #0a0f1e}
+        .pane:last-child{border-right:none}
+        .pane.full{grid-column:1/-1;border-right:none}
+        .plbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#475569;margin-bottom:6px}
+        .url-bar{background:#0a0f1e;border:1px solid #1e3354;border-radius:5px;padding:7px 11px;font-family:'SF Mono',Monaco,monospace;font-size:11px;color:#94a3b8;word-break:break-all;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+        pre.json{font-family:'SF Mono',Monaco,monospace;font-size:10.5px;background:#0a0f1e;border:1px solid #1e3354;border-radius:5px;padding:9px 11px;overflow-x:auto;line-height:1.55;white-space:pre;color:#94a3b8;min-height:32px;max-height:260px;overflow-y:auto}
+        .jk{color:#7dd3fc}.jv{color:#86efac}.jn{color:#fbbf24}.jb{color:#f87171}
+        .resp-wait{color:#475569;font-style:italic}
+        .resp-run{display:flex;align-items:center;gap:7px;color:#60a5fa;font-style:normal}
+        .spin{width:12px;height:12px;border:2px solid #1e3354;border-top-color:#3b82f6;border-radius:50%;animation:sp .6s linear infinite;flex-shrink:0}
+        @keyframes sp{to{transform:rotate(360deg)}}
+        .hbadge-ok{display:inline-block;font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px;margin-bottom:5px}
+        .ok-badge{background:#14291e;color:#4ade80;border:1px solid #16a34a44}
+        .err-badge{background:#2d1515;color:#f87171;border:1px solid #b91c1c44}
+        .note-box{border-radius:5px;padding:7px 10px;margin-top:7px;font-size:11px;line-height:1.5;display:flex;gap:7px}
+        .n-info{background:#1e3a5f22;border-left:2px solid #3b82f6;color:#93c5fd}
+        .n-warn{background:#3b221122;border-left:2px solid #f59e0b;color:#fcd34d}
+        .n-success{background:#14291e22;border-left:2px solid #22c55e;color:#86efac}
+        .n-error{background:#2d151522;border-left:2px solid #ef4444;color:#fca5a5}
+        .m-POST{background:#14291e;color:#4ade80;border:1px solid #22c55e33}
+        .m-GET{background:#1e3a5f;color:#60a5fa;border:1px solid #3b82f633}
+        .m-PATCH{background:#3b2211;color:#fbbf24;border:1px solid #f59e0b33}
+        .m-PUT{background:#2d1f5e;color:#a78bfa;border:1px solid #8b5cf633}
+        .m-DELETE{background:#2d1515;color:#f87171;border:1px solid #ef444433}
+        .r-ADMIN{background:#1e1b4b;color:#a78bfa;border-color:#7c3aed44}
+        .r-FIELD_OFFICER{background:#14291e;color:#4ade80;border-color:#16a34a44}
+        .r-CREDIT_OFFICER{background:#1e3a5f;color:#60a5fa;border-color:#1d4ed844}
+        .r-BRANCH_MANAGER{background:#3b2211;color:#fbbf24;border-color:#b4530944}
+        .r-COLLECTIONS_OFFICER{background:#2d1515;color:#f87171;border-color:#b91c1c44}
+        .r-BORROWER{background:#1a2e1a;color:#86efac;border-color:#16653444}
+        #toast{position:fixed;bottom:20px;right:20px;background:#1e293b;border:1px solid #334155;border-radius:7px;padding:9px 14px;font-size:11.5px;z-index:9999;opacity:0;transform:translateY(6px);transition:all .25s;max-width:300px;pointer-events:none}
+        #toast.show{opacity:1;transform:translateY(0)}
+        .speed-row{display:flex;align-items:center;gap:7px}
+        .speed-row label{font-size:11px;color:#64748b}
+        .speed-row select{background:#1e2940;border:1px solid #1e3354;color:#e2e8f0;padding:4px 8px;border-radius:5px;font-size:11px}
+    </style>
+</head>
+<body>
+<header>
+    <div class="logo">Micro<span>Lend</span></div>
+    <span class="hbadge pb">PORT 8082</span>
+    <span class="hbadge sb" id="cntBadge">47 Steps</span>
+    <div class="sp"></div>
+    <div class="speed-row">
+        <label>Speed</label>
+        <select id="speedSel">
+            <option value="700">Normal</option>
+            <option value="250">Fast</option>
+            <option value="80">Turbo</option>
+            <option value="1400">Slow</option>
+        </select>
+    </div>
+    <button id="stopBtn" onclick="stopRun()">&#9209; Stop</button>
+    <button id="mainRunBtn" onclick="startRun()">&#9654; Run Full Workflow</button>
+</header>
+<div class="progress"><div class="progress-fill" id="pFill"></div></div>
+<div class="layout">
+    <nav class="sidebar" id="sidebar"></nav>
+    <div class="main" id="mainPanel">
+        <div class="stats">
+            <div class="stat"><div class="sv" id="sTotal" style="color:#94a3b8">47</div><div class="sl">Total</div></div>
+            <div class="stat"><div class="sv" id="sDone" style="color:#22c55e">0</div><div class="sl">Passed</div></div>
+            <div class="stat"><div class="sv" id="sErr" style="color:#ef4444">0</div><div class="sl">Failed</div></div>
+            <div class="stat"><div class="sv" id="sTime" style="color:#06b6d4">0s</div><div class="sl">Elapsed</div></div>
+        </div>
+        <div id="steps"></div>
+    </div>
+</div>
+<div id="toast"></div>
+<script>
+    var BASE = 'http://localhost:8082';
+    var st = {
+      adminToken:null,fieldToken:null,creditToken:null,branchToken:null,
+      collectionsToken:null,borrowerToken:null,
+      borrowerID_1:null,borrowerID_2:null,centreID:null,groupID:null,
+      kycID_1:null,kycID_2:null,applicationID:null,assessmentID:null,
+      sanctionID:null,loanAccountID:null,scheduleID_1:null,scheduleID_2:null,
+      meetingID:null,delinquencyID:null,notificationID:null
+    };
+    var running=false,stopped=false,startTime=null,timerIv=null;
+    var doneN=0,errN=0;
+
+    function g(id){return document.getElementById(id);}
+
+    // ── STEPS DATA ──────────────────────────────────────────────────────────────
+    function STEPS(){return[
+    {phase:'p1',phaseLabel:'Phase 1 — Admin Setup',phaseColor:'#a78bfa',
+     id:1,method:'POST',role:'ADMIN',name:'Admin Login',sub:'Get JWT token — first call',
+     url:function(){return BASE+'/api/auth/login';},
+     headers:function(){return {'Content-Type':'application/json'};},
+     body:function(){return {email:'admin@microlend.com',password:'admin123'};},
+     onSuccess:function(d){st.adminToken=d.data.token;toast('adminToken saved');},
+     note:'Copy token to adminToken. All admin calls use this Bearer token.',ntype:'info'},
+
+    {phase:'p1',id:2,method:'POST',role:'ADMIN',name:'Create Group Loan Product',sub:'JLG agriculture, 12% reducing balance',
+     url:function(){return BASE+'/api/loan-products';},
+     headers:function(){return {'Content-Type':'application/json','Authorization':'Bearer '+st.adminToken};},
+     body:function(){return {productName:'Group Lending - Agriculture',category:'GROUP_LENDING',minAmount:5000,maxAmount:50000,tenureMonths:12,interestRatePercent:12.00,interestType:'REDUCING',processingFeePercent:2.00,status:'ACTIVE'};},
+     onSuccess:function(d){toast('Group product created, productID='+d.data.productID);},
+     note:'category: GROUP_LENDING | INDIVIDUAL | MSME | AGRICULTURAL. interestType: FLAT | REDUCING.',ntype:'info'},
+
+    {phase:'p1',id:3,method:'POST',role:'ADMIN',name:'Create Individual Loan Product',sub:'Individual micro loan, 14% flat rate',
+     url:function(){return BASE+'/api/loan-products';},
+     headers:function(){return {'Content-Type':'application/json','Authorization':'Bearer '+st.adminToken};},
+     body:function(){return {productName:'Individual Micro Loan',category:'INDIVIDUAL',minAmount:10000,maxAmount:100000,tenureMonths:24,interestRatePercent:14.00,interestType:'FLAT',processingFeePercent:1.50,status:'ACTIVE'};},
+     onSuccess:function(d){toast('Individual product created, productID='+d.data.productID);},
+     note:'For individual loans set groupID:null in the loan application step.',ntype:'info'},
+
+    {phase:'p1',id:4,method:'GET',role:'ADMIN',name:'View All Loan Products',sub:'Confirm both products are ACTIVE',
+     url:function(){return BASE+'/api/loan-products';},
+     headers:function(){return {'Authorization':'Bearer '+st.adminToken};},
+     body:function(){return null;},
+     note:'Both products should appear with status ACTIVE.',ntype:'success'},
+
+    {phase:'p1',id:5,method:'POST',role:'ADMIN',name:'Register Branch Manager',sub:'Bug Fix 1+2: protected endpoint, ADMIN only',
+     url:function(){return BASE+'/api/auth/register';},
+     headers:function(){return {'Content-Type':'application/json','Authorization':'Bearer '+st.adminToken};},
+     body:function(){return {name:'Anita Singh',role:'BRANCH_MANAGER',email:'anita.singh@microlend.com',password:'Branch@123',phone:'9876543210',branchID:1};},
+     onSuccess:function(d){st.branchToken=d.data.token;toast('branchToken saved, userID='+d.data.userID);},
+     note:'Bug Fix 1: Without adminToken you get 401. Bug Fix 2: BM cannot register ADMIN or cross-branch users -> 403.',ntype:'warn'},
+
+    {phase:'p1',id:6,method:'POST',role:'ADMIN',name:'Register Credit Officer',sub:'Credit officer account',
+     url:function(){return BASE+'/api/auth/register';},
+     headers:function(){return {'Content-Type':'application/json','Authorization':'Bearer '+st.adminToken};},
+     body:function(){return {name:'Priya Sharma',role:'CREDIT_OFFICER',email:'priya.sharma@microlend.com',password:'Credit@123',phone:'9876500001',branchID:1};},
+     onSuccess:function(d){st.creditToken=d.data.token;toast('creditToken saved, userID='+d.data.userID);},
+     note:'role values: ADMIN | BRANCH_MANAGER | CREDIT_OFFICER | FIELD_OFFICER | COLLECTIONS_OFFICER | BORROWER',ntype:'info'},
+
+    {phase:'p1',id:7,method:'POST',role:'ADMIN',name:'Register Field Officer',sub:'Field officer account',
+     url:function(){return BASE+'/api/auth/register';},
+     headers:function(){return {'Content-Type':'application/json','Authorization':'Bearer '+st.adminToken};},
+     body:function(){return {name:'Ravi Kumar',role:'FIELD_OFFICER',email:'ravi.kumar@microlend.com',password:'Field@123',phone:'9876500002',branchID:1};},
+     onSuccess:function(d){st.fieldToken=d.data.token;toast('fieldToken saved, userID='+d.data.userID);},
+     note:'Bug Fix 2 test: switch to branchToken + role=ADMIN -> 403 Forbidden (privilege escalation blocked).',ntype:'warn'},
+
+    {phase:'p1',id:8,method:'POST',role:'ADMIN',name:'Register Collections Officer',sub:'Collections officer account',
+     url:function(){return BASE+'/api/auth/register';},
+     headers:function(){return {'Content-Type':'application/json','Authorization':'Bearer '+st.adminToken};},
+     body:function(){return {name:'Suresh Reddy',role:'COLLECTIONS_OFFICER',email:'suresh.reddy@microlend.com',password:'Collect@123',phone:'9876500003',branchID:1};},
+     onSuccess:function(d){st.collectionsToken=d.data.token;toast('collectionsToken saved, userID='+d.data.userID);},
+     note:'collectionsOfficerID=5 will be used in delinquency case assignment.',ntype:'info'},
+
+    // ── PHASE 2 ─────────────────────────────────────────────────────────────────
+    {phase:'p2',phaseLabel:'Phase 2 — Field Onboarding',phaseColor:'#4ade80',
+     id:9,method:'POST',role:'FIELD_OFFICER',name:'Field Officer Login',sub:'Get JWT for field role',
+     url:function(){return BASE+'/api/auth/login';},
+     headers:function(){return {'Content-Type':'application/json'};},
+     body:function(){return {email:'ravi.kumar@microlend.com',password:'Field@123'};},
+     onSuccess:function(d){st.fieldToken=d.data.token;toast('fieldToken refreshed');},
+     note:'fieldToken refreshed. All field officer operations use this token.',ntype:'info'},
+
+    {phase:'p2',id:10,method:'POST',role:'FIELD_OFFICER',name:'Create Village Centre',sub:'Greenwood Village Centre, Tuesdays 10am',
+     url:function(){return BASE+'/api/centres';},
+     headers:function(){return {'Content-Type':'application/json','Authorization':'Bearer '+st.fieldToken};},
+     body:function(){return {centreName:'Greenwood Village Centre',branchID:1,fieldOfficerID:4,village:'Greenwood',meetingDay:'TUESDAY',meetingTime:'10:00:00',status:'ACTIVE'};},
+     onSuccess:function(d){st.centreID=d.data.centreID;toast('centreID='+d.data.centreID+' saved');},
+     note:'meetingDay: MONDAY | TUESDAY | WEDNESDAY | THURSDAY | FRIDAY | SATURDAY. meetingTime: HH:MM:SS',ntype:'info'},
+
+    {phase:'p2',id:11,method:'POST',role:'FIELD_OFFICER',name:'Register Borrower 1 — Lakshmi Devi',sub:'JLG member 1, income Rs.12000/month',
+     url:function(){return BASE+'/api/borrowers';},
+     headers:function(){return {'Content-Type':'application/json','Authorization':'Bearer '+st.fieldToken};},
+    body:function(){return {
+      name:'Lakshmi Devi',
+      dateOfBirth:'1990-05-15',
+      gender:'Female',
+      nationalIDNumber:'AADHAAR-1234-5678',
+      village:'Greenwood',
+      district:'Raichur',
+      phone:'9845001234',
+      occupation:'Farmer',
+      monthlyIncome:12000,
+      bankAccountNumber:'SBI0001234567',
+      status:'ACTIVE',
+      email:'lakshmi.devi@microlend.com',
+      password:'Borrower@123'
+    };},
+     onSuccess:function(d){st.borrowerID_1=d.data.borrowerID;toast('borrowerID_1='+d.data.borrowerID+' saved');},
+     note:'Borrowers cannot self-register. Only Field Officers register borrowers (Phase 1 rule).',ntype:'warn'},
+
+    {phase:'p2',id:12,method:'POST',role:'FIELD_OFFICER',name:'Register Borrower 2 — Sunita Patil',sub:'JLG member 2, skip for individual loan',
+     url:function(){return BASE+'/api/borrowers';},
+     headers:function(){return {'Content-Type':'application/json','Authorization':'Bearer '+st.fieldToken};},
+    body:function(){return {
+      name:'Sunita Patil',
+      dateOfBirth:'1988-03-22',
+      gender:'FEMALE',
+      nationalIDNumber:'AADHAAR-8765-4321',
+      village:'Greenwood',
+      district:'Raichur',
+      phone:'9845005678',
+      occupation:'Vegetable Seller',
+      monthlyIncome:9000,
+      bankAccountNumber:'SBI0009876543',
+      status:'ACTIVE',
+      email:'sunita.patil@microlend.com',
+      password:'Borrower@123'
+    };},
+     onSuccess:function(d){st.borrowerID_2=d.data.borrowerID;toast('borrowerID_2='+d.data.borrowerID+' saved');},
+     note:'For individual loan: skip this step and set groupID:null in loan application.',ntype:'info'},
+
+    {phase:'p2',id:13,method:'POST',role:'FIELD_OFFICER',name:'Create JLG Borrower Group',sub:'Greenwood Women Self-Help JLG, 2 members',
+     url:function(){return BASE+'/api/groups';},
+     headers:function(){return {'Content-Type':'application/json','Authorization':'Bearer '+st.fieldToken};},
+     body:function(){return {groupName:'Greenwood Women Self-Help JLG',centreID:st.centreID||1,fieldOfficerID:4,formationDate:'2024-01-15',memberCount:2,jointLiabilityEnabled:true,status:'ACTIVE'};},
+     onSuccess:function(d){st.groupID=d.data.groupID;toast('groupID='+d.data.groupID+' saved');},
+     note:'jointLiabilityEnabled:true means all members are collectively liable for each other in the group.',ntype:'info'},
+
+    {phase:'p2',id:14,method:'POST',role:'FIELD_OFFICER',name:'Upload KYC — National ID (Aadhaar)',sub:'Bug Fix 3: Field Officer uploads only, cannot verify',
+     url:function(){return BASE+'/api/kyc';},
+     headers:function(){return {'Content-Type':'application/json','Authorization':'Bearer '+st.fieldToken};},
+     body:function(){return {borrowerID:st.borrowerID_1||1,documentType:'NATIONAL_ID',documentRef:'LAKSHMI-AADHAAR-SCAN-001.jpg',status:'PENDING'};},
+     onSuccess:function(d){st.kycID_1=d.data.kycID;toast('kycID_1='+d.data.kycID+' saved');},
+     note:'Bug Fix 3: FIELD_OFFICER can only POST to /api/kyc. Calling PATCH /api/kyc/{id}/verify with fieldToken returns 403.',ntype:'warn'},
+
+    {phase:'p2',id:15,method:'POST',role:'FIELD_OFFICER',name:'Upload KYC — Utility Bill',sub:'Electricity bill as address proof',
+     url:function(){return BASE+'/api/kyc';},
+     headers:function(){return {'Content-Type':'application/json','Authorization':'Bearer '+st.fieldToken};},
+     body:function(){return {borrowerID:st.borrowerID_1||1,documentType:'UTILITY_BILL',documentRef:'LAKSHMI-ELECTRICITY-BILL-JAN24.jpg',status:'PENDING'};},
+     onSuccess:function(d){st.kycID_2=d.data.kycID;toast('kycID_2='+d.data.kycID+' saved');},
+     note:'documentType: NATIONAL_ID | VOTER_ID | PASSPORT | UTILITY_BILL',ntype:'info'},
+
+    {phase:'p2',id:16,method:'PATCH',role:'FIELD_OFFICER',name:'Attempt KYC Verify as Field Officer — MUST RETURN 403',sub:'Bug Fix 3 proof: this call is designed to fail',
+     url:function(){return BASE+'/api/kyc/'+(st.kycID_1||1)+'/verify?status=VERIFIED&verifiedByID=4';},
+     headers:function(){return {'Authorization':'Bearer '+st.fieldToken};},
+     body:function(){return null;},
+     expectStatus:403,
+     note:'Bug Fix 3: MUST return 403 Forbidden. Field Officer who uploaded cannot verify. Maker-checker fraud prevention confirmed.',ntype:'error'},
+
+    {phase:'p2',id:17,method:'POST',role:'FIELD_OFFICER',name:'Submit Loan Application for Borrower 1',sub:'Group loan Rs.25000 for agriculture',
+     url:function(){return BASE+'/api/loan-applications';},
+     headers:function(){return {'Content-Type':'application/json','Authorization':'Bearer '+st.fieldToken};},
+     body:function(){return {borrowerID:st.borrowerID_1||1,groupID:st.groupID||1,loanProductID:1,requestedAmount:25000,purpose:'Purchase agricultural inputs and seeds for Kharif season 2024',creditOfficerID:3};},
+     onSuccess:function(d){st.applicationID=d.data.applicationID;toast('applicationID='+d.data.applicationID+' saved');},
+     note:'Application starts as DRAFT. Must call /submit next to move to SUBMITTED status.',ntype:'info'},
+
+    {phase:'p2',id:18,method:'PATCH',role:'FIELD_OFFICER',name:'Submit Application (DRAFT to SUBMITTED)',sub:'Field officer formally submits to credit queue',
+     url:function(){return BASE+'/api/loan-applications/'+(st.applicationID||1)+'/submit';},
+     headers:function(){return {'Authorization':'Bearer '+st.fieldToken};},
+     body:function(){return null;},
+     note:'No request body. Status: DRAFT -> SUBMITTED. Visible in Credit Officer queue.',ntype:'success'},
+
+    // ── PHASE 3 ─────────────────────────────────────────────────────────────────
+    {phase:'p3',phaseLabel:'Phase 3 — Credit Underwriting and Sanction',phaseColor:'#60a5fa',
+     id:19,method:'POST',role:'CREDIT_OFFICER',name:'Credit Officer Login',sub:'Get JWT for credit role',
+     url:function(){return BASE+'/api/auth/login';},
+     headers:function(){return {'Content-Type':'application/json'};},
+     body:function(){return {email:'priya.sharma@microlend.com',password:'Credit@123'};},
+     onSuccess:function(d){st.creditToken=d.data.token;toast('creditToken refreshed');},
+     note:'creditToken refreshed. KYC verify, assessment, approval, and disbursement all use this.',ntype:'info'},
+
+    {phase:'p3',id:20,method:'PATCH',role:'CREDIT_OFFICER',name:'Verify KYC — National ID',sub:'Bug Fix 3: only CREDIT_OFFICER or ADMIN can verify',
+     url:function(){return BASE+'/api/kyc/'+(st.kycID_1||1)+'/verify?status=VERIFIED&verifiedByID=3';},
+     headers:function(){return {'Authorization':'Bearer '+st.creditToken};},
+     body:function(){return null;},
+     note:'Bug Fix 3 confirmed: same URL returned 403 with fieldToken (Step 16). With creditToken -> 200 OK.',ntype:'success'},
+
+    {phase:'p3',id:21,method:'PATCH',role:'CREDIT_OFFICER',name:'Verify KYC — Utility Bill',sub:'Verify the address proof document',
+     url:function(){return BASE+'/api/kyc/'+(st.kycID_2||2)+'/verify?status=VERIFIED&verifiedByID=3';},
+     headers:function(){return {'Authorization':'Bearer '+st.creditToken};},
+     body:function(){return null;},
+     note:'status query param: VERIFIED | REJECTED | EXPIRED. No request body needed.',ntype:'info'},
+
+    {phase:'p3',id:22,method:'POST',role:'CREDIT_OFFICER',name:'Create Credit Assessment',sub:'DBR 28.5%, score 720, recommendation ELIGIBLE',
+     url:function(){return BASE+'/api/credit-assessments';},
+     headers:function(){return {'Content-Type':'application/json','Authorization':'Bearer '+st.creditToken};},
+     body:function(){return {borrowerID:st.borrowerID_1||1,assessedByID:3,assessmentDate:'2024-01-17',internalCreditScore:720,debtBurdenRatio:28.50,recommendation:'ELIGIBLE',remarks:'Monthly income Rs.12000. DBR 28.5% within 30% policy ceiling. KYC verified. JLG guarantee confirmed. Recommended for approval.'};},
+     onSuccess:function(d){st.assessmentID=d.data.assessmentID;toast('assessmentID='+d.data.assessmentID+' saved');},
+     note:'DBR = (Monthly obligation / Monthly income) x 100. recommendation: ELIGIBLE | NOT_ELIGIBLE | CONDITIONAL.',ntype:'info'},
+
+    {phase:'p3',id:23,method:'PUT',role:'CREDIT_OFFICER',name:'Update Credit Assessment',sub:'Revised score 745, DBR 26% after field verification',
+     url:function(){return BASE+'/api/credit-assessments/'+(st.assessmentID||1);},
+     headers:function(){return {'Content-Type':'application/json','Authorization':'Bearer '+st.creditToken};},
+     body:function(){return {borrowerID:st.borrowerID_1||1,assessedByID:3,assessmentDate:'2024-01-17',internalCreditScore:745,debtBurdenRatio:26.00,recommendation:'ELIGIBLE',remarks:'Revised after field verification confirmed additional crop income Rs.1500 per month. New DBR: 26.0%. Strong recommendation.'};},
+     note:'PUT replaces full record. Include all fields. Score improved from 720 to 745.',ntype:'info'},
+
+    {phase:'p3',id:24,method:'PATCH',role:'CREDIT_OFFICER',name:'Move Application to UNDER_REVIEW',sub:'Credit officer takes formal ownership',
+     url:function(){return BASE+'/api/loan-applications/'+(st.applicationID||1)+'/status';},
+     headers:function(){return {'Content-Type':'application/json','Authorization':'Bearer '+st.creditToken};},
+     body:function(){return {status:'UNDER_REVIEW',remarks:'KYC verified, credit assessment completed, proceeding to approval decision.'};},
+     note:'Status flow: DRAFT -> SUBMITTED -> UNDER_REVIEW -> APPROVED/REJECTED -> DISBURSED.',ntype:'info'},
+
+    {phase:'p3',id:25,method:'PATCH',role:'CREDIT_OFFICER',name:'Approve Loan Application',sub:'Score 745, DBR 26% — approved Rs.25000',
+     url:function(){return BASE+'/api/loan-applications/'+(st.applicationID||1)+'/status';},
+     headers:function(){return {'Content-Type':'application/json','Authorization':'Bearer '+st.creditToken};},
+     body:function(){return {status:'APPROVED',remarks:'Credit score 745, DBR 26.0% — within all policy limits. KYC fully verified. JLG guarantee confirmed. Approved for Rs.25000 at 12% reducing balance over 12 months.'};},
+     note:'For rejection: use status: REJECTED with reason in remarks. Rejection path ends here.',ntype:'success'},
+
+    {phase:'p3',id:26,method:'POST',role:'CREDIT_OFFICER',name:'Issue Sanction Letter',sub:'EMI Rs.2219.92/month for 12 months',
+     url:function(){return BASE+'/api/sanction-letters';},
+     headers:function(){return {'Content-Type':'application/json','Authorization':'Bearer '+st.creditToken};},
+     body:function(){return {applicationID:st.applicationID||1,sanctionedAmount:25000,interestRate:12.00,tenure:12,emiAmount:2219.92,disbursalConditions:'1. Borrower must attend centre meeting on disbursal date. 2. JLG co-guarantee agreement signed. 3. Original Aadhaar to be shown.'};},
+     onSuccess:function(d){st.sanctionID=d.data.sanctionID;toast('sanctionID='+d.data.sanctionID+' saved');},
+     note:'EMI = P x r x (1+r)^n / ((1+r)^n - 1) where r=0.01/month, n=12. EMI = Rs.2219.92.',ntype:'info'},
+
+
+     {
+      phase:'p3',
+      id:26.5,
+      method:'POST',
+      role:'BORROWER',
+      name:'Borrower Login (Lakshmi Devi)',
+      sub:'Login using borrower credentials',
+      url:function(){return BASE+'/api/auth/login';},
+      headers:function(){return {'Content-Type':'application/json'};},
+      body:function(){return {
+        email:'lakshmi.devi@microlend.com',
+        password:'Borrower@123'
+      };},
+      onSuccess:function(d){
+        st.borrowerToken=d.data.token;
+        toast('borrowerToken saved');
+      },
+      note:'Borrower logs in before accepting sanction letter.',
+      ntype:'info'
+    },
+
+
+    {phase:'p3',id:27,method:'PATCH',role:'FIELD_OFFICER',name:'Borrower Accepts Sanction Letter',sub:'Field officer records physical signature',
+     url:function(){return BASE+'/api/sanction-letters/'+(st.sanctionID||1)+'/accept';},
+     headers:function(){return {'Authorization':'Bearer '+st.borrowerToken};},
+     body:function(){return null;},
+     note:'acceptedByBorrower becomes true. Status: ISSUED -> ACCEPTED. Loan ready for disbursement.',ntype:'success'},
+
+    // ── PHASE 4 ─────────────────────────────────────────────────────────────────
+    {phase:'p4',phaseLabel:'Phase 4 — Disbursement',phaseColor:'#fbbf24',
+     id:28,method:'POST',role:'CREDIT_OFFICER',name:'Disburse Loan and Generate Schedule',sub:'Auto-creates all 12 monthly installment rows',
+     url:function(){return BASE+'/api/loan-accounts/disburse';},
+     headers:function(){return {'Content-Type':'application/json','Authorization':'Bearer '+st.creditToken};},
+     body:function(){return {applicationID:st.applicationID||1,disbursedAmount:25000,disbursementDate:'2024-01-20'};},
+     onSuccess:function(d){st.loanAccountID=d.data.loanAccountID;toast('loanAccountID='+d.data.loanAccountID+' saved');},
+     note:'Single call disburses loan AND auto-generates all 12 RepaymentSchedule rows. Verify with next step.',ntype:'success'},
+
+    {phase:'p4',id:29,method:'GET',role:'CREDIT_OFFICER',name:'View Generated Repayment Schedule',sub:'Verify 12 rows, all PENDING, amounts correct',
+     url:function(){return BASE+'/api/loan-accounts/'+(st.loanAccountID||1)+'/schedule';},
+     headers:function(){return {'Authorization':'Bearer '+st.creditToken};},
+     body:function(){return null;},
+     onSuccess:function(d){if(d.data&&d.data.length>0){st.scheduleID_1=d.data[0].scheduleID;if(d.data.length>1)st.scheduleID_2=d.data[1].scheduleID;toast('scheduleID_1='+st.scheduleID_1+' scheduleID_2='+st.scheduleID_2);}},
+     note:'scheduleID_1 = installment 1 (due 2024-02-20). scheduleID_2 = installment 2 (used in partial payment demo).',ntype:'info'},
+
+    // ── PHASE 5 ─────────────────────────────────────────────────────────────────
+    {phase:'p5',phaseLabel:'Phase 5 — EMI Collections',phaseColor:'#4ade80',
+     id:30,method:'POST',role:'FIELD_OFFICER',name:'Schedule Centre Meeting',sub:'Tuesday 20-Feb-2024 collection meeting',
+     url:function(){return BASE+'/api/meetings';},
+     headers:function(){return {'Content-Type':'application/json','Authorization':'Bearer '+st.fieldToken};},
+     body:function(){return {centreID:st.centreID||1,meetingDate:'2024-02-20',conductedByID:4,attendanceCount:0,collectionAmount:0,status:'SCHEDULED'};},
+     onSuccess:function(d){st.meetingID=d.data.meetingID;toast('meetingID='+d.data.meetingID+' saved');},
+     note:'MeetingStatus: SCHEDULED | CONDUCTED | MISSED | POSTPONED.',ntype:'info'},
+
+    {phase:'p5',id:31,method:'POST',role:'FIELD_OFFICER',name:'Record Full EMI Payment — Installment 1',sub:'Rs.2219.92 paid exactly — status becomes PAID',
+     url:function(){return BASE+'/api/collections';},
+     headers:function(){return {'Content-Type':'application/json','Authorization':'Bearer '+st.fieldToken};},
+     body:function(){return {loanAccountID:st.loanAccountID||1,scheduleID:st.scheduleID_1||1,collectedAmount:2219.92,collectionDate:'2024-02-20',collectedByID:4,mode:'CENTRE_COLLECTION'};},
+     note:'After this: GET schedule -> scheduleID_1 status=PAID, amountPaid=2219.92, paidDate stamped.',ntype:'success'},
+
+    {phase:'p5',id:32,method:'POST',role:'FIELD_OFFICER',name:'Record PARTIAL Payment — Installment 2 (Bug Fix 4)',sub:'Rs.1000 of Rs.2219.92 due — MUST show PARTIAL not PENDING',
+     url:function(){return BASE+'/api/collections';},
+     headers:function(){return {'Content-Type':'application/json','Authorization':'Bearer '+st.fieldToken};},
+     body:function(){return {loanAccountID:st.loanAccountID||1,scheduleID:st.scheduleID_2||2,collectedAmount:1000.00,collectionDate:'2024-03-20',collectedByID:4,mode:'CENTRE_COLLECTION'};},
+     note:'Bug Fix 4: scheduleID_2 must show status=PARTIAL and amountPaid=1000.00. Before fix it stayed PENDING with amountPaid=0.',ntype:'warn'},
+
+    {phase:'p5',id:33,method:'POST',role:'FIELD_OFFICER',name:'Record Remaining Balance of Installment 2',sub:'Rs.1219.92 remaining — amountPaid sums to 2219.92 -> PAID',
+     url:function(){return BASE+'/api/collections';},
+     headers:function(){return {'Content-Type':'application/json','Authorization':'Bearer '+st.fieldToken};},
+     body:function(){return {loanAccountID:st.loanAccountID||1,scheduleID:st.scheduleID_2||2,collectedAmount:1219.92,collectionDate:'2024-03-25',collectedByID:4,mode:'CENTRE_COLLECTION'};},
+     note:'Cumulative: 1000 + 1219.92 = 2219.92 = totalDue -> scheduleID_2 status becomes PAID.',ntype:'success'},
+
+    {phase:'p5',id:34,method:'PUT',role:'FIELD_OFFICER',name:'Update Centre Meeting — Record Attendance',sub:'Attendance 5, collections Rs.11099.60, status CONDUCTED',
+     url:function(){return BASE+'/api/meetings/'+(st.meetingID||1);},
+     headers:function(){return {'Content-Type':'application/json','Authorization':'Bearer '+st.fieldToken};},
+     body:function(){return {centreID:st.centreID||1,meetingDate:'2024-02-20',conductedByID:4,attendanceCount:5,collectionAmount:11099.60,status:'CONDUCTED'};},
+     note:'collectionAmount = sum of all EMIs collected across all borrowers during this meeting.',ntype:'info'},
+
+    // ── PHASE 6 ─────────────────────────────────────────────────────────────────
+    {phase:'p6',phaseLabel:'Phase 6 — Delinquency',phaseColor:'#f87171',
+     id:35,method:'POST',role:'ADMIN',name:'Trigger Delinquency Engine (Bug Fix 5)',sub:'On-demand trigger of nightly scheduled cron job',
+     url:function(){return BASE+'/api/delinquency/trigger';},
+     headers:function(){return {'Authorization':'Bearer '+st.adminToken};},
+     body:function(){return null;},
+     note:'Bug Fix 5: Engine auto-runs at 00:30 AM via @Scheduled(cron="0 30 0 * * *"). This endpoint triggers it manually for testing.',ntype:'warn'},
+
+    {phase:'p6',id:36,method:'POST',role:'COLLECTIONS_OFFICER',name:'Manually Create Delinquency Case',sub:'PAR30, 35 DPD, FIELD_VISIT action, OPEN',
+     url:function(){return BASE+'/api/delinquency';},
+     headers:function(){return {'Content-Type':'application/json','Authorization':'Bearer '+st.collectionsToken};},
+     body:function(){return {loanAccountID:st.loanAccountID||1,dpd:35,parBucket:'PAR30',assignedCollectionsOfficerID:5,action:'FIELD_VISIT',status:'OPEN'};},
+     onSuccess:function(d){st.delinquencyID=d.data.delinquencyID;toast('delinquencyID='+d.data.delinquencyID+' saved');},
+     note:'parBucket: PAR30 | PAR60 | PAR90 | PAR180. action: FIELD_VISIT | LEGAL_NOTICE | RESTRUCTURING | WRITE_OFF.',ntype:'info'},
+
+    {phase:'p6',id:37,method:'GET',role:'COLLECTIONS_OFFICER',name:'Get All Delinquency Cases',sub:'View all open recovery cases across portfolio',
+     url:function(){return BASE+'/api/delinquency';},
+     headers:function(){return {'Authorization':'Bearer '+st.collectionsToken};},
+     body:function(){return null;},
+     note:'Accessible to COLLECTIONS_OFFICER and BRANCH_MANAGER.',ntype:'info'},
+
+    {phase:'p6',id:38,method:'PUT',role:'COLLECTIONS_OFFICER',name:'Update Delinquency Case — Recovery Action',sub:'Escalate to LEGAL_NOTICE, status IN_PROGRESS',
+     url:function(){return BASE+'/api/delinquency/'+(st.delinquencyID||1);},
+     headers:function(){return {'Content-Type':'application/json','Authorization':'Bearer '+st.collectionsToken};},
+     body:function(){return {loanAccountID:st.loanAccountID||1,dpd:42,parBucket:'PAR30',assignedCollectionsOfficerID:5,action:'LEGAL_NOTICE',status:'IN_PROGRESS'};},
+     note:'When borrower resumes payments: status=RESOLVED. For write-off: action=WRITE_OFF, status=WRITTEN_OFF.',ntype:'info'},
+
+    // ── PHASE 7 ─────────────────────────────────────────────────────────────────
+    {phase:'p7',phaseLabel:'Phase 7 — Reports and Notifications',phaseColor:'#fbbf24',
+     id:39,method:'POST',role:'BRANCH_MANAGER',name:'Branch Manager Login',sub:'Get JWT for branch manager role',
+     url:function(){return BASE+'/api/auth/login';},
+     headers:function(){return {'Content-Type':'application/json'};},
+     body:function(){return {email:'anita.singh@microlend.com',password:'Branch@123'};},
+     onSuccess:function(d){st.branchToken=d.data.token;toast('branchToken refreshed');},
+     note:'branchToken refreshed. Reports and oversight use this token.',ntype:'info'},
+
+    {phase:'p7',id:40,method:'POST',role:'BRANCH_MANAGER',name:'Generate Portfolio Report',sub:'PAR30, PAR90, NPA% for branch 1',
+     url:function(){return BASE+'/api/reports/generate?scope=BRANCH&scopeRefID=1';},
+     headers:function(){return {'Authorization':'Bearer '+st.branchToken};},
+     body:function(){return null;},
+     onSuccess:function(d){st.reportID=d.data.reportID;toast('reportID='+d.data.reportID+' saved');},
+     note:'scope: BRANCH | PRODUCT | FIELD_OFFICER | PERIOD. scopeRefID = branchID for BRANCH scope.',ntype:'info'},
+
+    {phase:'p7',id:41,method:'POST',role:'ADMIN',name:'Send EMI Due Notification to Borrower',sub:'REPAYMENT category notification',
+     url:function(){return BASE+'/api/notifications/send?userID='+(st.borrowerID_1||1)+'&message=Your+EMI+of+Rs.2219.92+is+due+on+2024-05-20.+Please+attend+the+centre+meeting.&category=REPAYMENT';},
+     headers:function(){return {'Authorization':'Bearer '+st.adminToken};},
+     body:function(){return null;},
+     onSuccess:function(d){st.notificationID=d.data.notificationID;toast('notificationID='+d.data.notificationID+' saved');},
+     note:'All params are query params — no request body. category: REPAYMENT | DISBURSEMENT | MEETING | DELINQUENCY | COMPLIANCE.',ntype:'info'},
+
+    // ── PHASE 8 ─────────────────────────────────────────────────────────────────
+    {phase:'p8',phaseLabel:'Phase 8 — Borrower Portal',phaseColor:'#86efac',
+     id:42,method:'POST',role:'BORROWER',name:'Borrower Login',sub:'Borrower views loan details (read-only)',
+     url:function(){return BASE+'/api/auth/login';},
+     headers:function(){return {'Content-Type':'application/json'};},
+     body:function(){return {email:'lakshmi.devi@microlend.com',password:'Borrower@123'};},
+     onSuccess:function(d){st.borrowerToken=d.data.token;toast('borrowerToken saved');},
+     note:'Borrower cannot self-register or make online payments. Read-only portal access only.',ntype:'warn'},
+
+    {phase:'p8',id:43,method:'GET',role:'BORROWER',name:'View Loan Account Details',sub:'Outstanding principal, status, DPD',
+     url:function(){return BASE+'/api/loan-accounts/borrower/'+(st.borrowerID_1||1);},
+     headers:function(){return {'Authorization':'Bearer '+(st.borrowerToken||st.adminToken)};},
+     body:function(){return null;},
+     note:'Borrower sees: disbursedAmount, outstandingPrincipal, totalRepayable, status, dpd. Read-only.',ntype:'info'},
+
+    {phase:'p8',id:44,method:'GET',role:'BORROWER',name:'View Repayment Schedule — EMI Status',sub:'Remaining EMIs, paid dates, PARTIAL installments',
+     url:function(){return BASE+'/api/loan-accounts/'+(st.loanAccountID||1)+'/schedule';},
+     headers:function(){return {'Authorization':'Bearer '+(st.borrowerToken||st.adminToken)};},
+     body:function(){return null;},
+     note:'Borrower sees: PAID (paidDate stamped), PENDING upcoming, PARTIAL in-progress. Count PENDING rows for remaining months.',ntype:'success'},
+
+    {phase:'p8',id:45,method:'GET',role:'BORROWER',name:'View Notifications',sub:'EMI reminders and system messages',
+     url:function(){return BASE+'/api/notifications/user/'+(st.borrowerID_1||1);},
+     headers:function(){return {'Authorization':'Bearer '+(st.borrowerToken||st.adminToken)};},
+     body:function(){return null;},
+     note:'NotificationStatus: UNREAD | READ | DISMISSED.',ntype:'info'},
+
+    // ── PHASE 9 ─────────────────────────────────────────────────────────────────
+    {phase:'p9',phaseLabel:'Phase 9 — Admin Wrap-up',phaseColor:'#a78bfa',
+     id:46,method:'GET',role:'ADMIN',name:'Admin Views Full Audit Logs',sub:'Every mutation, approval, and scheduler event',
+     url:function(){return BASE+'/api/admin/audit-logs';},
+     headers:function(){return {'Authorization':'Bearer '+st.adminToken};},
+     body:function(){return null;},
+     note:'userID=0 entries = SYSTEM_SCHEDULER (Bug Fix 5 nightly delinquency engine). Restricted to ADMIN only.',ntype:'info'},
+
+    {phase:'p9',id:47,method:'PUT',role:'ADMIN',name:'Update Loan Product — Change Interest Rate',sub:'Rate 12% -> 11.5%, max loan Rs.50000 -> Rs.60000',
+     url:function(){return BASE+'/api/loan-products/1';},
+     headers:function(){return {'Content-Type':'application/json','Authorization':'Bearer '+st.adminToken};},
+     body:function(){return {productName:'Group Lending - Agriculture Revised',category:'GROUP_LENDING',minAmount:5000,maxAmount:60000,tenureMonths:12,interestRatePercent:11.50,interestType:'REDUCING',processingFeePercent:2.00,status:'ACTIVE'};},
+     note:'Rate change applies to new applications only. Existing active loans and RepaymentSchedule rows are unchanged.',ntype:'warn'},
+    ];}
+
+    // ── SYNTAX HIGHLIGHTER ──────────────────────────────────────────────────────
+    function hl(json){
+      if(!json)return '';
+      var s=json.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      s=s.replace(/("[\w]+")\s*:/g,'<span class="jk">$1</span>:');
+      s=s.replace(/:\s*"([^"]*)"/g,': <span class="jv">"$1"</span>');
+      s=s.replace(/:\s*(\d+\.?\d*)/g,': <span class="jn">$1</span>');
+      s=s.replace(/:\s*(true|false|null)/g,': <span class="jb">$1</span>');
+      return s;
+    }
+
+    // ── BUILD UI ─────────────────────────────────────────────────────────────────
+    function buildUI(){
+      var steps=STEPS();
+      var sidebarEl=g('sidebar');
+      var stepsEl=g('steps');
+      var sbHTML='',stHTML='';
+      var lastPhase='';
+
+      steps.forEach(function(s){
+        if(s.phase!==lastPhase){
+          lastPhase=s.phase;
+          if(s.phaseLabel){
+            sbHTML+='<div class="sb-phase">'+s.phaseLabel+'</div>';
+            var c=s.phaseColor||'#64748b';
+            stHTML+='<div class="phase-hdr" id="'+s.phase+'">'
+              +'<div class="ph-pill" style="background:'+c+'18;border-color:'+c+'33;color:'+c+'">'+s.phaseLabel+'</div>'
+              +'</div>';
+          }
+        }
+        // sidebar item
+        sbHTML+='<div class="sb-item" id="sb'+s.id+'" onclick="scrollTo('+s.id+')">'
+          +'<div class="sb-num" id="sbn'+s.id+'">'+s.id+'</div>'
+          +'<div class="sb-label">'
+          +'<div class="sb-name">'+esc(s.name)+'</div>'
+          +'<div class="sb-role">'+s.role.replace(/_/g,' ')+'</div>'
+          +'</div>'
+          +'<div class="sb-dot" id="sbd'+s.id+'"></div>'
+          +'</div>';
+
+        var mc='m-'+s.method;
+        var rc='r-'+s.role;
+        var roleDisp=s.role.replace(/_/g,' ');
+        var bodyObj=s.body();
+        var bodyHTML=bodyObj
+          ? '<pre class="json" id="rb'+s.id+'">'+hl(JSON.stringify(bodyObj,null,2))+'</pre>'
+          : '<pre class="json" id="rb'+s.id+'" style="color:#475569;font-style:italic">// No body required</pre>';
+
+        var noteHTML='';
+        if(s.note){
+          var icons={info:'i',warn:'!',success:'v',error:'x'};
+          var ntc='n-'+(s.ntype||'info');
+          noteHTML='<div class="note-box '+ntc+'"><span>'+icons[s.ntype||'info']+'</span><span>'+esc(s.note)+'</span></div>';
+        }
+
+        stHTML+='<div class="step-card" id="card'+s.id+'">'
+          +'<div class="step-top">'
+          +'<div class="card-num" id="cn'+s.id+'">'+s.id+'</div>'
+          +'<div class="card-title">'
+          +'<div class="card-name">'+esc(s.name)+'</div>'
+          +'<div class="card-sub">'+esc(s.sub)+'</div>'
+          +'</div>'
+          +'<span class="meth '+mc+'">'+s.method+'</span>'
+          +'<span class="role-tag '+rc+'">'+roleDisp+'</span>'
+          +'<span class="status-ico" id="si'+s.id+'">&#9675;</span>'
+          +'</div>'
+          +'<div class="step-body" id="sb'+s.id+'b">'
+          +'<div class="body-grid">'
+          +'<div class="pane full">'
+          +'<div class="plbl">URL</div>'
+          +'<div class="url-bar"><span class="meth '+mc+'">'+s.method+'</span><span id="ud'+s.id+'">'+esc(s.url())+'</span></div>'
+          +'</div>'
+          +'</div>'
+          +'<div class="body-grid">'
+          +'<div class="pane">'
+          +'<div class="plbl">Request Body</div>'
+          +bodyHTML
+          +'</div>'
+          +'<div class="pane">'
+          +'<div class="plbl">Response</div>'
+          +'<pre class="json resp-wait" id="resp'+s.id+'">// waiting to run...</pre>'
+          +'</div>'
+          +'</div>'
+          +'<div style="padding:7px 14px 11px">'
+          +noteHTML
+          +'<div id="extra'+s.id+'"></div>'
+          +'</div>'
+          +'</div>'
+          +'</div>';
+      });
+
+      sidebarEl.innerHTML=sbHTML;
+      stepsEl.innerHTML=stHTML;
+      g('cntBadge').textContent=steps.length+' Steps';
+      g('sTotal').textContent=steps.length;
+    }
+
+    function esc(s){
+      if(!s)return '';
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function scrollTo(id){
+      var el=g('card'+id);
+      if(el)el.scrollIntoView({behavior:'smooth',block:'center'});
+    }
+
+    // ── STATE HELPERS ────────────────────────────────────────────────────────────
+    function setState(id,state){
+      var card=g('card'+id),sbItem=g('sb'+id),cn=g('cn'+id),si=g('si'+id),sbn=g('sbn'+id),sbd=g('sbd'+id);
+      var stMap={run:'st-run',done:'st-done',err:'st-err'};
+      var cls=stMap[state]||'';
+      if(card){card.className='step-card'+' '+(cls||'')}
+      if(sbItem){sbItem.className='sb-item'+' '+(cls||'')}
+      var icons={run:'&#9711;',done:'&#10003;',err:'&#10007;'};
+      if(si)si.innerHTML=icons[state]||'&#9675;';
+      if(sbn)sbn.textContent=state==='done'?'&#10003;':state==='err'?'&#10007;':id;
+    }
+
+    // ── RUN ENGINE ───────────────────────────────────────────────────────────────
+    async function startRun(){
+      if(running)return;
+      var steps=STEPS();
+      running=true;stopped=false;doneN=0;errN=0;
+      g('mainRunBtn').disabled=true;
+      g('stopBtn').style.display='block';
+      startTime=Date.now();
+      timerIv=setInterval(function(){g('sTime').textContent=((Date.now()-startTime)/1000).toFixed(1)+'s';},200);
+
+      for(var i=0;i<steps.length;i++){
+        if(stopped)break;
+        await runStep(steps[i]);
+        g('pFill').style.width=((i+1)/steps.length*100)+'%';
+        await sleep(parseInt(g('speedSel').value));
+      }
+
+      clearInterval(timerIv);
+      running=false;
+      g('mainRunBtn').disabled=false;
+      g('stopBtn').style.display='none';
+      toast(stopped?'Stopped — '+doneN+' passed, '+errN+' failed':'Workflow complete! '+doneN+' passed, '+errN+' failed');
+    }
+
+    function stopRun(){stopped=true;}
+
+    async function runStep(s){
+      setState(s.id,'run');
+      // scroll into view
+      var cardEl=g('card'+s.id);
+      if(cardEl)cardEl.scrollIntoView({behavior:'smooth',block:'center'});
+
+      // update url display with live resolved values
+      var resolvedURL=s.url();
+      var udEl=g('ud'+s.id);
+      if(udEl)udEl.textContent=resolvedURL;
+
+      // update request body display
+      var bodyObj=s.body();
+      var rbEl=g('rb'+s.id);
+      if(rbEl){
+        if(bodyObj){rbEl.innerHTML=hl(JSON.stringify(bodyObj,null,2));}
+        else{rbEl.innerHTML='<span style="color:#475569;font-style:italic">// No body required</span>';}
+      }
+
+      var respEl=g('resp'+s.id);
+      if(respEl){respEl.className='json resp-run';respEl.innerHTML='<span class="spin"></span> Running...';}
+
+      try{
+        var opts={method:s.method,headers:s.headers()};
+        if(bodyObj&&(s.method==='POST'||s.method==='PUT'||s.method==='PATCH')){
+          opts.body=JSON.stringify(bodyObj);
+        }
+        var res=await fetch(resolvedURL,opts);
+        var data;
+        try{data=await res.json();}catch(e){data={raw:true,status:res.status};}
+        var pretty=JSON.stringify(data,null,2);
+        var isExpected=(s.expectStatus&&res.status===s.expectStatus);
+        var isOK=res.ok||isExpected;
+
+        if(respEl){
+          var badgeCls=isOK?'ok-badge':'err-badge';
+          var badgeText=isOK?(isExpected?'HTTP '+res.status+' EXPECTED':'HTTP '+res.status+' OK'):'HTTP '+res.status+' ERROR';
+          respEl.className='json';
+          respEl.innerHTML='<span class="hbadge-ok '+badgeCls+'">'+badgeText+'</span>\n'+hl(pretty);
+        }
+
+        if(isOK){
+          setState(s.id,'done');doneN++;
+          if(s.onSuccess)s.onSuccess(data);
+          if(isExpected){
+            var ex=g('extra'+s.id);
+            if(ex)ex.innerHTML='<div class="note-box n-success"><span>v</span><span>Expected '+s.expectStatus+' received. Bug Fix 3 confirmed — Field Officer cannot verify KYC. Security working correctly.</span></div>';
+          }
+        } else {
+          setState(s.id,'err');errN++;
+          var ex=g('extra'+s.id);
+          if(ex)ex.innerHTML='<div class="note-box n-error"><span>x</span><span>Request failed (HTTP '+res.status+'). Check: server on port 8082? Token valid? DB connected? See response above for details.</span></div>';
+        }
+      } catch(err){
+        var isNet=err.message&&(err.message.indexOf('fetch')>-1||err.message.indexOf('Failed')>-1||err.message.indexOf('NetworkError')>-1||err.message.indexOf('CORS')>-1);
+        if(respEl){
+          respEl.className='json';
+          var errJSON=isNet
+            ? JSON.stringify({error:'Cannot connect to '+BASE,message:err.message,fix:'Start Spring Boot: mvn spring-boot:run',note:'Ensure server.port=8082 in application.properties. Add @CrossOrigin or WebMvcConfigurer CORS bean if browser blocks requests.'},null,2)
+            : JSON.stringify({error:err.message},null,2);
+          respEl.innerHTML='<span class="hbadge-ok err-badge">CONNECTION ERROR</span>\n'+hl(errJSON);
+        }
+        setState(s.id,'err');errN++;
+        var ex=g('extra'+s.id);
+        if(ex)ex.innerHTML='<div class="note-box n-error"><span>x</span><span>'+esc(err.message)+'. Is Spring Boot running on port 8082? To allow browser requests add: @CrossOrigin(origins="*") to controllers or a global CORS bean.</span></div>';
+      }
+      g('sDone').textContent=doneN;
+      g('sErr').textContent=errN;
+    }
+
+    function sleep(ms){return new Promise(function(r){setTimeout(r,ms);});}
+
+    function toast(msg,dur){
+      dur=dur||3200;
+      var t=g('toast');t.textContent=msg;t.classList.add('show');
+      setTimeout(function(){t.classList.remove('show');},dur);
+    }
+
+    buildUI();
+</script>
+</body>
+</html>
